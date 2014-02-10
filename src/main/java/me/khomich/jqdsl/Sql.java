@@ -18,11 +18,12 @@ public class Sql {
 
 	/**
 	 * Declares an SQL table or view for further usage
+	 *
 	 * @param name table/view original name
 	 * @param alias shorten name (alias) to use
 	 * @return a new table reference object
 	 */
-	public static TableLike table(String name, String alias) {
+	public static TableRef table(String name, String alias) {
 		return new TableRef(name, alias);
 	}
 
@@ -34,6 +35,10 @@ public class Sql {
 	 */
 	public static Expression expr(String sqlExpression, Object... values) {
 		return null;
+	}
+
+	public static Column col(TableLike source, String columnName) {
+		return source.col(columnName);
 	}
 
 	public static Condition and(Condition ... conds) {
@@ -53,7 +58,7 @@ public class Sql {
 	 * @param elements the list of all selectable elements. If elements are not specified then SELECT * is considered
 	 */
 	public static SelectIntoChain select(Selectable ... elements) {
-		return new SelectQueryBuilder(elements);
+		return new SelectQueryModel(elements);
 	}
 
 	public interface QuitChain {
@@ -93,17 +98,36 @@ public class Sql {
 
 	public interface JoinOp {
 		/**
-		 * Joins an additional source
-		 * @param source any component compliant with Source interface. It can be table, view or other query (even CTE, when supported)
+		 * Smartly joins an additional source. Sql optimizer can skip this join if no references found (nor in select columns neither in where conditions)
 		 */
 		OnOp join(Source source);
+
+		/**
+		 * Forces to conditionally join an additional source. If condition fails then all row will be rejected from output.
+		 */
+		OnOp innerJoin(Source source);
+
+		/**
+		 * Tries to conditionally join an additional source on the right side. If condition fails then all-NULL row will be joined instead
+		 */
+		OnOp leftJoin(Source source);
+
+		/**
+		 * Tries to conditionally join an additional source on the left side. If condition fails then all-NULL row will be joined instead
+		 */
+		OnOp rightJoin(Source source);
+
+		/**
+		 * Joins an additional source unconditionally. It means each virtual row of previous sources will be repeated with combination of each row of this source
+		 */
+		FromChain crossJoin(Source source);
 	}
 
 	public interface OnOp {
 		/**
-		 * Specifies a list of conditions for previous join operation
+		 * Specifies a condition for previous join operation
 		 */
-		FromChain on(Condition conditions);
+		FromChain on(Condition condition);
 	}
 
 	public interface WhereOp {
@@ -146,7 +170,6 @@ public class Sql {
 		 */
 		boolean isDegenerated();
 
-
 		/**
 		 * Checks is this condition complex and aggregates multiple of other conditions
 		 */
@@ -178,6 +201,16 @@ public class Sql {
 		 * Emits an ordering SQL
 		 */
 		void genOrderingSql(SqlBuilder sqlBuilder);
+	}
+
+	/** Creates ascending ordering by select column position */
+	public static Ordering asc(int pos) {
+		return Orderings.num(SqlKeyword.ASC, pos);
+	}
+
+	/** Creates descending ordering by select column position */
+	public static Ordering desc(int pos) {
+		return Orderings.num(SqlKeyword.DESC, pos);
 	}
 
 	public interface Source {

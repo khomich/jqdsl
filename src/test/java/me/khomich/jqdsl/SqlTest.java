@@ -7,20 +7,21 @@ import static me.khomich.jqdsl.Sql.*;
 public class SqlTest extends SqlTestSupport {
 	private final TableLike u = table("User", "u");
 	private final TableLike g = table("Group", "g");
+	private final TableLike a = table("Account", "a");
 
 	@Test
 	public void test() {
 
 
-		Query query = select(u).from(u).where(u.col("email").eq("khomich")).toQuery();
+		Query query = select(u).from(u).where(col(u, "email").eq("khomich")).toQuery();
 
 		System.out.println(query);
 
-		Query query2 = select(u).from(u).where(and(u.col("email").eq("khomich"), u.col("accountId").in(10, 20, 30))).toQuery();
+		Query query2 = select(u).from(u).where(and(col(u, "email").eq("khomich"), col(u, "accountId").in(10, 20, 30))).toQuery();
 
 		System.out.println(query2);
 
-		Query query3 = select(u).from(u).where(and(u.col("email").eq("khomich"), or(u.col("accountId").in(10, 20, 30), u.col("email").notLike("%gmail.com")))).toQuery();
+		Query query3 = select(u).from(u).where(and(col(u, "email").eq("khomich"), or(col(u, "accountId").in(10, 20, 30), col(u, "email").notLike("%gmail.com")))).toQuery();
 
 		System.out.println(query3);
 
@@ -29,8 +30,10 @@ public class SqlTest extends SqlTestSupport {
 			from(u).
 			where(
 			  and(
-				u.col("email").eq(null),
-				or(u.col("accountId").in(), u.col("email").like("%gmail.com"))
+				col(u, "email").eq(null),
+				or(
+				  col(u, "accountId").in(null), col(u, "email").like("%gmail.com")
+				)
 			  )
 			).
 			toQuery();
@@ -66,6 +69,10 @@ public class SqlTest extends SqlTestSupport {
 
 	private final String GROUP_1 = "group1";
 	private final String GROUP_2 = "group2";
+
+	private FromChain fromQuery() {
+		return select().from(u);
+	}
 
 	private WhereChain condQuery(Condition cond) {
 		return select().from(u).where(cond);
@@ -171,6 +178,40 @@ public class SqlTest extends SqlTestSupport {
 		assertQuery(REF_ORDER + " u.name DESC", orderQuery(u_name.desc()));
 		assertQuery(REF_ORDER + " u.name ASC, u.age DESC", orderQuery(u_name.asc(), u_age.desc()));
 		assertQuery(REF_ORDER + " u.name ASC, u.age DESC, u.email DESC", orderQuery(u_name.asc(), u_age.desc(), u_email.asc(false)));
+	}
+
+	@Test
+	public void testJoins() {
+		assertQuery(REF_FROM + " INNER JOIN Group g ON g.id = u.groupId", fromQuery().innerJoin(g).on(col(g, "id").eq(col(u, "groupId"))));
+		assertQuery(REF_FROM + " INNER JOIN Group g ON (g.id = u.groupId AND g.name = ?)", fromQuery().innerJoin(g).on(and(col(g, "id").eq(col(u, "groupId")), col(g, "name").eq(NAME_1))), NAME_1);
+		assertQuery(REF_FROM + " INNER JOIN Group g ON g.id = u.groupId CROSS JOIN Account a", fromQuery().innerJoin(g).on(col(g, "id").eq(col(u, "groupId"))).crossJoin(a));
+		assertQuery(REF_FROM + " INNER JOIN Group g ON g.id = u.groupId LEFT JOIN Account a ON a.name = g.name", fromQuery().innerJoin(g).on(col(g, "id").eq(col(u, "groupId"))).leftJoin(a).on(col(a, "name").eq(col(g, "name"))));
+	}
+
+	@Test
+	public void complexQuery() {
+		Column u_name = col(u, "name");
+		Column u_groupId = col(u, "groupId");
+		Column g_name = col(g, "name");
+		Column g_id = col(g, "id");
+		Column a_name = col(a, "name");
+
+		QuitChain query =
+			select(u_name, g_name.as("group_name"), a_name.as("Account Name"))
+			.from(u)
+				.innerJoin(g).on(g_id.eq(u_groupId))
+				.leftJoin(a).on(a_name.eq(g_name))
+			.where(and(
+				u_name.eq(NAME_1),
+				g_name.like(NAME_PAT),
+				a_name.in()
+			))
+			.order(
+				desc(1)
+			);
+
+		assertQuery("SELECT u.name, g.name AS group_name, a.name AS \"Account Name\" FROM User u INNER JOIN Group g ON g.id = u.groupId LEFT JOIN Account a ON a.name = g.name WHERE u.name = ? AND g.name LIKE ? ORDER BY 1 DESC",
+				   query, NAME_1, NAME_PAT);
 	}
 
 }

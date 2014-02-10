@@ -39,6 +39,11 @@ public class SqlBuilder {
 		return this;
 	}
 
+	public SqlBuilder add(Sql.Source source) {
+		source.genSourceSql(this);
+		return this;
+	}
+
 	public SqlBuilder add(Sql.ValueLike value) {
 		value.genValueSql(this);
 		return this;
@@ -133,8 +138,12 @@ public class SqlBuilder {
 	}
 
 	public SqlBuilder param(Object value) {
-		buffer.append("?");
-		params.add(value);
+		if (value instanceof Sql.ValueLike) {
+			add((Sql.ValueLike)value);
+		} else {
+			buffer.append("?");
+			params.add(value);
+		}
 		return this;
 	}
 

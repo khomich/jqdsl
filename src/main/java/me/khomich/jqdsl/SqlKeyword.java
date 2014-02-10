@@ -7,10 +7,13 @@ public enum SqlKeyword {
 	JOIN,
 	INNER,
 	OUTER,
+	CROSS,
 	LEFT,
+	RIGHT,
 	WHERE,
 	ORDER,
 	BY,
+	ON,
 	AS,
 	ASC,
 	DESC
